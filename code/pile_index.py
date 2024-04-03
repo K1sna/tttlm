@@ -60,11 +60,12 @@ class PileIndex:
         assert self.index.d == query_vector.shape[1]
 
         results = self.index.search_and_reconstruct(query_vector, num_neighbors)
+        distances = results[0].reshape(num_neighbors) # added by Kisna
         neighbors = results[1].reshape(num_neighbors)
         vectors = results[2].reshape(num_neighbors, -1)
         data_items = [self.data_dict[i] for i in neighbors]
 
-        return vectors, data_items
+        return vectors, data_items, distances # added by Kisna
 
     def string_query(self, query_str : str, num_neighbors : int):
         """Nearest neighbor string query.
@@ -108,9 +109,13 @@ def data_to_dict(data_path : str):
     print('Reading data file: ', data_path)
 
     texts = []
-    with open(data_path, 'r') as data_file:
+    with open(data_path, 'r', errors='ignore') as data_file: # 我修改了
         for line in tqdm(data_file):
-            texts.append(json.loads(line)['text'])
+            try:
+                texts.append(json.loads(line)['text'])
+            except json.decoder.JSONDecodeError:
+                print("Skipping a txt due to JSON decoding error.")
+                texts.append("Replaced by Kisna")
 
     return dict(zip(range(len(texts)), texts))
 

@@ -29,6 +29,11 @@ def parse_args():
     parser.add_argument('--shutdown', action='store_true')
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--logging_level', type=str, default='INFO')
+    parser.add_argument('--query_file', type=str, default='path/to/your/query_file.jsonl',
+                        help='Path to the JSONL file containing queries.')
+    parser.add_argument('--output_file', type=str, default='path/to/your/output_file.jsonl',
+                        help='Path to the output JSONL file to save the query results.')
+
     return parser.parse_args()
 
 
@@ -318,7 +323,22 @@ if __name__ == '__main__':
 
     client = roberta_client(args.address_path, password, args.embedding_model_checkpoint)
 
-    start_time = time.time()
-    _, texts = client.string_query(args.query, args.num_neighbors)
-    logging.info('Query time: %.2f', time.time() - start_time)
-    print(texts)
+    if os.path.exists(args.query_file):
+        with open(args.query_file, 'r', encoding='utf-8') as infile, \
+             open(args.output_file, 'w', encoding='utf-8') as outfile:
+            for line in infile:
+                data = json.loads(line)
+                query_text = data.get('response')  # 假设每行JSON都有一个'response'字段包含文本
+                if query_text:
+                    start_time = time.time()
+                    _, results, l2_distances = client.string_query(query_text, args.num_neighbors)
+                    logging.info('Query time: %.2f', time.time() - start_time)
+                    result_data = {'query': query_text}
+                    for i,(text, l2_distance) in enumerate(zip(results, l2_distances), start=1):
+                        result_data[f'result{i}'] = {'text': text, 'L2': l2_distance}
+                    json.dump(result_data, outfile)
+                    outfile.write('\n')  # 确保每条记录后有换行符
+                else:
+                    logging.warning("No 'response' field found in the JSON line.")
+    else:
+        logging.error(f"Query file not found: {args.query_file}")
